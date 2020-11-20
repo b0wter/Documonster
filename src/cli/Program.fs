@@ -58,11 +58,11 @@ let main argv =
             | [ List ] ->
                 failwith "Not implemented."
                 return 1
-            | [ Annotate filename ] ->
+            | [ Annotate _ ] ->
                 let filename = results.PostProcessResult(<@ Annotate @>, parseFilename)
                 let! result = annotate filename
                 return result
-            | multiples ->
+            | _ ->
                 failwith "You need to supply either the 'list' or the 'annotate' argument not both."
                 return 1
         with e ->
