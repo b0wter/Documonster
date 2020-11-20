@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Utilities.fs" />
+    <Compile Include="Storage.fs" />
+    <Compile Include="Annotation.fs" />
+    <Compile Include="Response.fs" />
+    <Compile Include="Document.fs" />
+    <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Control.AsyncSeq" Version="3.0.2" />
+    <PackageReference Include="Google.Cloud.Storage.V1" Version="3.3.0" />
+    <PackageReference Include="Google.Cloud.Vision.V1" Version="2.0.0" />
+    <PackageReference Include="Newtonsoft.json" Version="12.0.3" />
+    <PackageReference Include="TaskBuilder.fs" Version="2.1.0" />
+  </ItemGroup>
+
+</Project>
