@@ -3,6 +3,13 @@ open b0wter.DocuMonster.Google
 open FSharp.Control.Tasks.V2
 open Argu
 
+let bucketName = "documonster"
+
+let parseFilename (f: string) =
+    if not <| IO.File.Exists(f) then failwith (sprintf "The given file '%s' does not exist." f) 
+    else if not <| f.EndsWith(".pdf") then failwith "You may only supply pdf files."
+    else f
+
 type Args =
     | [<CliPrefix(CliPrefix.None)>] List //of ParseResults<ListArgs>
     | [<CliPrefix(CliPrefix.None)>] Annotate of string //of ParseResults<AnnotationArgs>
@@ -15,14 +22,14 @@ type Args =
 [<EntryPoint>]
 let main argv =
     task {
-        let run () =
+        let annotate filename =
             task {
             match Storage.SClient.Create (), Annotation.AClient.Create () with
             | Ok sclient, Ok aclient ->
 
                 let! document = Core.uploadAndAnnotateAsResult sclient
-                                    aclient "documonster"
-                                    { Core.FileDefinition.LocalFileName = "/home/b0wter/downloads/sample.pdf"
+                                    aclient bucketName
+                                    { Core.FileDefinition.LocalFileName = filename
                                       Core.FileDefinition.MimeType = Utilities.MimeType.PDF }
 
                 match document with
@@ -52,7 +59,8 @@ let main argv =
                 failwith "Not implemented."
                 return 1
             | [ Annotate filename ] ->
-                let! result = run ()
+                let filename = results.PostProcessResult(<@ Annotate @>, parseFilename)
+                let! result = annotate filename
                 return result
             | multiples ->
                 failwith "You need to supply either the 'list' or the 'annotate' argument not both."
