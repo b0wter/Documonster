@@ -2,17 +2,7 @@ namespace b0wter.DocuMonster.Google
 
 module Document =
     open Response
-
-    type Page = {
-        Width: int
-        Height: int
-        Blocks: Block list
-        Text: string
-    }
-
-    type Document = {
-        Pages: Page list
-    }
+    open b0wter.DocuMonster.SharedEntities.Document
 
     let private pageFromResponse (response: Response.Response) =
         if response.FullTextAnnotation.Pages.Length <= 0 then

@@ -53,7 +53,7 @@ let main argv =
             let results = parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
             match results.GetAllResults() with
             | [] ->
-                failwith "You need to supply a subcommand."
+                failwith "You need to specify a command."
                 return 1
             | [ List ] ->
                 failwith "Not implemented."

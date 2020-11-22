@@ -7,6 +7,7 @@ module Core =
 
     open FSharp.Control.Tasks.V2
     open System.Threading.Tasks
+    open b0wter.DocuMonster.SharedEntities
 
     type DeleteFailure = {
         Annotation: Document.Document
