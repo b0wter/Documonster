@@ -11,19 +11,36 @@ let parseFilename (f: string) =
     else if not <| f.EndsWith(".pdf") then failwith "You may only supply pdf files."
     else f
 
+type AnnotateArgs =
+    | [<MainCommand; First; CliPrefix(CliPrefix.None)>] Filename of string
+    | [<AltCommandLine("-n")>] Name of string 
+    interface IArgParserTemplate with
+        member s.Usage =
+            match s with
+            | Filename _ -> "File to annotate"
+            | Name _ -> "Name of the document in the database."
+            
 type Args =
     | [<CliPrefix(CliPrefix.None)>] List //of ParseResults<ListArgs>
+    | [<CliPrefix(CliPrefix.None)>] Annotate of ParseResults<AnnotateArgs>
+    interface IArgParserTemplate with
+        member s.Usage =
+            match s with
+            | List _ -> "List previously annotated files."
+            | Annotate _ -> "Annotate a pdf file."
+    (*
     | [<CliPrefix(CliPrefix.None)>] Annotate of string //of ParseResults<AnnotationArgs>
     interface IArgParserTemplate with
         member s.Usage =
             match s with
             | List _ -> "List previously annotated files."
             | Annotate _ -> "Annotate a pdf file."
+    *)
 
 [<EntryPoint>]
 let main argv =
     task {
-        let annotate filename =
+        let annotate filename name =
             task {
             match Storage.SClient.Create (), Annotation.AClient.Create () with
             | Ok sClient, Ok aClient ->
@@ -31,7 +48,7 @@ let main argv =
                                     aClient bucketName
                                     { Core.FileDefinition.LocalFileName = filename
                                       Core.FileDefinition.MimeType = Utilities.MimeType.PDF }
-                                    (Some "name")
+                                    name
                 match document with
                 | Ok r ->
                     return Ok r
@@ -65,8 +82,10 @@ let main argv =
             printfn "Could not initialize CouchDb Connection because: %s" e
             return 1
         | [ Annotate _ ], Ok couchDb ->
-            let filename = results.PostProcessResult(<@ Annotate @>, parseFilename)
-            let! annotateResult = annotate filename
+            let annotationParameter = results.GetResult(<@ Annotate @>)
+            let filename = annotationParameter.PostProcessResult(<@ Filename @>, parseFilename)
+            let name = annotationParameter.TryGetResult(<@ Name @>)
+            let! annotateResult = annotate filename name
             let! storeResult = annotateResult |> (Result.bindT (store couchDb filename))
             match storeResult with
             | Ok _ ->
