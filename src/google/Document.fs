@@ -29,4 +29,4 @@ module Document =
                 Ok (acc |> List.rev)
                 
         let r = step [] responses.Responses
-        r |> Result.map (fun r -> { Pages = r })
+        r |> Result.map (fun r -> { Pages = r; Filename = None; Name = None })

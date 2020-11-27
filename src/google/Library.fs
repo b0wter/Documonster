@@ -51,7 +51,7 @@ module Core =
     let private download (client: Storage.SClient) bucketName (annotation: Annotation.AnnotationParameter) =
         Storage.retrieveTextFile client bucketName (annotation.TargetPrefix |> Utilities.BucketUri.value)
 
-    let uploadAndAnnotate (sclient: Storage.SClient) (aclient: Annotation.AClient) (bucketName: string) (file: FileDefinition) : Task<AnnotationResult> =
+    let uploadAndAnnotate (sclient: Storage.SClient) (aclient: Annotation.AClient) (bucketName: string) (file: FileDefinition) (name: string option) : Task<AnnotationResult> =
         task {
             // Create all the necessary parameters.
             let rawAnnotationPrefix = sprintf "gs://%s/output/%s" bucketName (file.LocalFileName |> System.IO.Path.GetFileNameWithoutExtension)
@@ -72,7 +72,8 @@ module Core =
                         match! Storage.retrieveTextFile sclient bucketName resultFilename with
                         | Ok result ->
                             match result |> (Newtonsoft.Json.JsonConvert.DeserializeObject<Response.Responses> >> Document.fromResponse) with
-                            | Ok document -> 
+                            | Ok document ->
+                                let document = { document with Filename = Some file.LocalFileName; Name = name }
                                 match! Storage.delete sclient bucketName (resultFilename|> Storage.Destination.FullPath) with
                                 | Ok _ ->
                                     return Success document
@@ -105,9 +106,9 @@ module Core =
         | ParsingFailed e -> Error ("ParsingFailed: " + e)
         | DeletionFailed failure -> Ok failure.Annotation
 
-    let uploadAndAnnotateAsResult (sclient: Storage.SClient) (aclient: Annotation.AClient) (bucketName: string) (file: FileDefinition) : Task<Result<Document.Document, string>> =
+    let uploadAndAnnotateAsResult (sclient: Storage.SClient) (aclient: Annotation.AClient) (bucketName: string) (file: FileDefinition) (name: string option) : Task<Result<Document.Document, string>> =
         task {
-            let! annotationResult = uploadAndAnnotate sclient aclient bucketName file
+            let! annotationResult = uploadAndAnnotate sclient aclient bucketName file name
             return (annotationResult |> asResult)
         }
         

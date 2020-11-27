@@ -2,6 +2,7 @@
 open b0wter.DocuMonster.Google
 open FSharp.Control.Tasks.V2
 open Argu
+open b0wter.DocuMonster.SharedEntities.Utilities
 
 let bucketName = "documonster"
 
@@ -25,48 +26,58 @@ let main argv =
         let annotate filename =
             task {
             match Storage.SClient.Create (), Annotation.AClient.Create () with
-            | Ok sclient, Ok aclient ->
-
-                let! document = Core.uploadAndAnnotateAsResult sclient
-                                    aclient bucketName
+            | Ok sClient, Ok aClient ->
+                let! document = Core.uploadAndAnnotateAsResult sClient
+                                    aClient bucketName
                                     { Core.FileDefinition.LocalFileName = filename
                                       Core.FileDefinition.MimeType = Utilities.MimeType.PDF }
-
+                                    (Some "name")
                 match document with
                 | Ok r ->
-                    printfn "%A" (r.Pages |> List.map (fun r -> r.Text))
-                    return 0
+                    return Ok r
                 | Error e ->
-                    printfn "%s" e
-                    return 1
+                    return Error e
             | Error e, _ ->
-                do printfn "The Google Storage client could not be initialized because: %s" e
-                return 1
+                return Error (sprintf "The Google Storage client could not be initialized because: %s" e)
             | _, Error e ->
-                do printfn "The Google Image Annotation client could not be initialized because: %s" e
-                return 1
+                return Error (sprintf "The Google Image Annotation client could not be initialized because: %s" e)
+            }
+            
+        let store couchDb filename document =
+            task {
+                return! b0wter.DocuMonster.CouchDb.Core.storeWith couchDb document filename |> Async.StartAsTask
             }
                 
         let errorHandler = ProcessExiter(colorizer = function ErrorCode.HelpText -> None | _ -> None)
         let parser = ArgumentParser.Create<Args>(errorHandler = errorHandler)
-        try
-            let results = parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
-            match results.GetAllResults() with
-            | [] ->
-                failwith "You need to specify a command."
+        //try
+        let results = parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
+        let! couchDbConnection = b0wter.DocuMonster.CouchDb.Core.initFromEnvironment ()
+        match results.GetAllResults(), couchDbConnection with
+        | [], _ ->
+            printfn "You need to specify a command."
+            printfn "%s" (parser.PrintUsage())
+            return 1
+        | [ List ], Ok couchDb ->
+            
+            return 1
+        | _, Error e ->
+            printfn "Could not initialize CouchDb Connection because: %s" e
+            return 1
+        | [ Annotate _ ], Ok couchDb ->
+            let filename = results.PostProcessResult(<@ Annotate @>, parseFilename)
+            let! annotateResult = annotate filename
+            let! storeResult = annotateResult |> (Result.bindT (store couchDb filename))
+            match storeResult with
+            | Ok _ ->
+                printfn "File was annotated successfully and stored in CouchDb."
+                return 0
+            | Error e ->
+                printfn "There was an error trying to annotate and store the file:"
+                printfn "%s" e
                 return 1
-            | [ List ] ->
-                failwith "Not implemented."
-                return 1
-            | [ Annotate _ ] ->
-                let filename = results.PostProcessResult(<@ Annotate @>, parseFilename)
-                let! result = annotate filename
-                return result
-            | _ ->
-                failwith "You need to supply either the 'list' or the 'annotate' argument not both."
-                return 1
-        with e ->
-            printfn "%s" e.Message
+        | _ ->
+            printfn "You need to supply either the 'list' or the 'annotate' argument not both."
             printfn "%s" (parser.PrintUsage())
             return 1
                 

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>b0wter.DocuMonster.Google</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
