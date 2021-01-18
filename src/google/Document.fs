@@ -18,15 +18,22 @@ module Document =
                 Text = response.FullTextAnnotation.Text
             } |> Ok
 
-    let fromResponse (responses: Response.Responses) =
-        let rec step (acc: Page list) (remaining: Response.Response list) =
-            match remaining with
-            | head :: tail ->
-                match head |> pageFromResponse with
-                | Ok page -> step (page :: acc) tail
-                | Error e -> Error e
-            | [] ->
-                Ok (acc |> List.rev)
-                
-        let r = step [] responses.Responses
-        r |> Result.map (fun r -> { Pages = r; Filename = None; Name = None })
+    let fromResponse (responses: Responses) =
+        if responses.Responses.IsEmpty then
+            Error "The response did not contain any Response-objects."
+        else if responses.Responses |> List.map (fun r -> r.Context.Uri) |> List.distinct |> List.length > 1 then
+            Error "The response included more than one filename. This is not yet supported."
+        else
+            let rec step (acc: Page list) (remaining: Response.Response list) =
+                match remaining with
+                | head :: tail ->
+                    match head |> pageFromResponse with
+                    | Ok page -> step (page :: acc) tail
+                    | Error e -> Error e
+                | [] ->
+                    Ok (acc |> List.rev)
+                    
+            let filename = responses.Responses.Head.Context.Uri |> System.IO.Path.GetFileName
+
+            let r = step [] responses.Responses
+            r |> Result.map (fun r -> { Pages = r; Filename = filename; Name = None })

@@ -57,7 +57,7 @@ module Document =
 
     type Document = {
         Pages: Page list
-        Filename: string option
+        Filename: string
         Name: string option
     }
     

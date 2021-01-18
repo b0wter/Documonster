@@ -1,10 +1,10 @@
 ﻿namespace b0wter.DocuMonster.CouchDb
 
-open b0wter.CouchDb.Lib.Server
 
 module Core =
     open b0wter.CouchDb.Lib
     open b0wter.DocuMonster.SharedEntities
+    open b0wter.CouchDb.Lib.Server
     open System
     open b0wter.FSharp
     
@@ -40,7 +40,7 @@ module Core =
     let authenticate (props, dbName) =
         // dbName is not required but it makes it easier to chain this function
         async {
-            match! b0wter.CouchDb.Lib.Server.Authenticate.queryAsResult props with
+            match! Authenticate.queryAsResult props with
             | Ok _ -> return Ok (props, dbName)
             | Error e -> return Error (e |> ErrorRequestResult.textAsString)
         }
@@ -68,7 +68,7 @@ module Core =
         
     let private storeAttachment (dbProps: DbProperties.T) (dbName: string) (documentId: string) (documentRev: string) (attachment: byte[]) =
         async {
-            match! b0wter.CouchDb.Lib.Attachments.PutBinary.queryAsResult dbProps dbName documentId documentRev "pdf" attachment with
+            match! Attachments.PutBinary.queryAsResult dbProps dbName documentId documentRev "pdf" attachment with
             | Ok response ->
                 if response.Ok then
                     return Ok ()
@@ -78,7 +78,13 @@ module Core =
                 return Error (ErrorRequestResult.textAsString e)
         }
         
-    let storeWith ((dbProps: DbProperties.T), (dbName: string)) (document: Document.Document) (filename: string) : Async<Result<unit, string>> =
+    let retrieveAttachment ((dbProps: DbProperties.T), (dbName: string)) documentId attachmentName : Async<Result<byte[], string>> =
+        async {
+            let! result = Attachments.GetBinary.queryAsResult dbProps dbName documentId attachmentName
+            return result |> Result.mapError ErrorRequestResult.binaryAsString
+        }
+        
+    let storeFileWith ((dbProps: DbProperties.T), (dbName: string)) (document: Document.Document) (filename: string) : Async<Result<unit, string>> =
         async {
             match readLocalFile filename with
             | Ok bytes ->
@@ -87,3 +93,31 @@ module Core =
                 return Error (sprintf "Could not read '%s' from the local file system because: %s" filename e)
         }
         
+        
+    /// Retrieves a document by using its id.
+    let retrieveById<'a> ((dbProps: DbProperties.T), (dbName: string)) documentId : Async<Result<'a, string>> =
+        async {
+            let! result = b0wter.CouchDb.Lib.Documents.Get.queryAsResult dbProps dbName documentId []
+            return result |> Result.mapBoth (fun ok -> ok.Content) (fun error -> error |> ErrorRequestResult.textAsString)
+        }
+        
+    /// Checks whether a given document id exists.
+    let documentIdExists ((dbProps: DbProperties.T), (dbName: string)) documentId : Async<Result<bool, string>> =
+        async {
+            let! result = b0wter.CouchDb.Lib.Documents.Head.query dbProps dbName documentId
+            return match result with
+                    | HttpVerbs.Head.DocumentExists _ | HttpVerbs.Head.NotModified _ -> Ok true
+                    | HttpVerbs.Head.NotFound _ -> Ok false
+                    | HttpVerbs.Head.Unauthorized e | HttpVerbs.Head.DbNameMissing e | HttpVerbs.Head.DocumentIdMissing e | HttpVerbs.Head.ParameterIsMissing e | HttpVerbs.Head.Unknown e ->
+                        ErrorRequestResult.fromRequestResultAndCase(e, result) |> ErrorRequestResult.textAsString |> Error
+        }
+        
+    let attachmentIdExists ((dbProps: DbProperties.T), (dbName: string)) documentId attachmentId : Async<Result<bool, string>> =
+        async {
+            let! result = b0wter.CouchDb.Lib.Attachments.Head.query dbProps dbName documentId attachmentId None
+            return match result with
+                    | HttpVerbs.Head.DocumentExists _ | HttpVerbs.Head.NotModified _ -> Ok true
+                    | HttpVerbs.Head.NotFound _ -> Ok false
+                    | HttpVerbs.Head.Unauthorized e | HttpVerbs.Head.DbNameMissing e | HttpVerbs.Head.DocumentIdMissing e | HttpVerbs.Head.ParameterIsMissing e | HttpVerbs.Head.Unknown e ->
+                        ErrorRequestResult.fromRequestResultAndCase(e, result) |> ErrorRequestResult.textAsString |> Error
+        }

@@ -1,13 +1,12 @@
 ﻿namespace b0wter.DocuMonster.Google
 
-open System.IO
-open b0wter.DocuMonster.Google.Utilities
-
 module Core =
 
     open FSharp.Control.Tasks.V2
     open System.Threading.Tasks
     open b0wter.DocuMonster.SharedEntities
+    open b0wter.DocuMonster.Google.Utilities
+    open b0wter.DocuMonster.Google
 
     type DeleteFailure = {
         Annotation: Document.Document
@@ -26,7 +25,7 @@ module Core =
 
     type FileDefinition = {
         LocalFileName: string
-        MimeType: Utilities.MimeType.T
+        MimeType: MimeType.T
     }
     
     let private fileDefinitionFilename f =
@@ -73,7 +72,7 @@ module Core =
                         | Ok result ->
                             match result |> (Newtonsoft.Json.JsonConvert.DeserializeObject<Response.Responses> >> Document.fromResponse) with
                             | Ok document ->
-                                let document = { document with Filename = Some file.LocalFileName; Name = name }
+                                let document = { document with Filename = file.LocalFileName; Name = name }
                                 match! Storage.delete sclient bucketName (resultFilename|> Storage.Destination.FullPath) with
                                 | Ok _ ->
                                     return Success document

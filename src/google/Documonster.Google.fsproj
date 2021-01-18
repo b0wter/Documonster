@@ -11,7 +11,7 @@
     <Compile Include="Annotation.fs" />
     <Compile Include="Response.fs" />
     <Compile Include="Document.fs" />
-    <Compile Include="Library.fs" />
+    <Compile Include="Core.fs" />
   </ItemGroup>
 
   <ItemGroup>
