@@ -1,0 +1,8 @@
+#!/usr/bin/env fish
+set -gx DOCUMONSTER_COUCHDB_IP "127.0.0.1"
+set -gx DOCUMONSTER_COUCHDB_PORT 5985
+set -gx DOCUMONSTER_COUCHDB_USER admin
+set -gx DOCUMONSTER_COUCHDB_PASSWORD password
+set -gx DOCUMONSTER_COUCHDB_DB documonster_documents
+
+dotnet run $argv

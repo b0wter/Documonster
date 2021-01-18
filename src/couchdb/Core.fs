@@ -63,12 +63,12 @@ module Core =
             return! configurationFromEnvironment () |> Result.bindA authenticate |> AsyncResult.bindA createDatabase
         }
             
-    let private storeJson (dbProps: DbProperties.T) (dbName: string) (document: Document.Document) =
+    let storeDocument (dbProps: DbProperties.DbProperties) (dbName: string) (document: Document.Document) =
         Databases.AddDocument.queryAsResult dbProps dbName document |> Async.map (function | Ok response -> Ok response | Error e -> Error (ErrorRequestResult.textAsString e))
         
-    let private storeAttachment (dbProps: DbProperties.T) (dbName: string) (documentId: string) (documentRev: string) (attachment: byte[]) =
+    let storeAttachment ((dbProps: DbProperties.DbProperties), (dbName: string)) (documentId: string) (documentRev: string option) (attachmentName: string) (attachment: byte[]) =
         async {
-            match! Attachments.PutBinary.queryAsResult dbProps dbName documentId documentRev "pdf" attachment with
+            match! Attachments.PutBinary.queryAsResult dbProps dbName documentId documentRev attachmentName attachment with
             | Ok response ->
                 if response.Ok then
                     return Ok ()
@@ -78,31 +78,32 @@ module Core =
                 return Error (ErrorRequestResult.textAsString e)
         }
         
-    let retrieveAttachment ((dbProps: DbProperties.T), (dbName: string)) documentId attachmentName : Async<Result<byte[], string>> =
+    let retrieveAttachment ((dbProps: DbProperties.DbProperties), (dbName: string)) documentId attachmentName : Async<Result<byte[], string>> =
         async {
             let! result = Attachments.GetBinary.queryAsResult dbProps dbName documentId attachmentName
             return result |> Result.mapError ErrorRequestResult.binaryAsString
         }
         
-    let storeFileWith ((dbProps: DbProperties.T), (dbName: string)) (document: Document.Document) (filename: string) : Async<Result<unit, string>> =
+    let storeDocumentAndFileWith ((dbProps: DbProperties.DbProperties), (dbName: string)) (document: Document.Document) (filename: string) : Async<Result<unit, string>> =
         async {
             match readLocalFile filename with
             | Ok bytes ->
-                return! (storeJson dbProps dbName document |> AsyncResult.bindA (fun response -> storeAttachment dbProps dbName response.Id response.Rev bytes))
+                return! (storeDocument dbProps dbName document |> AsyncResult.bindA (fun response -> storeAttachment (dbProps, dbName) response.Id (Some response.Rev) "pdf" bytes))
             | Error e ->
                 return Error (sprintf "Could not read '%s' from the local file system because: %s" filename e)
         }
         
-        
     /// Retrieves a document by using its id.
-    let retrieveById<'a> ((dbProps: DbProperties.T), (dbName: string)) documentId : Async<Result<'a, string>> =
+    let retrieveById<'a> ((dbProps: DbProperties.DbProperties), (dbName: string)) (documentId: string) : Async<Result<'a, string>> =
         async {
-            let! result = b0wter.CouchDb.Lib.Documents.Get.queryAsResult dbProps dbName documentId []
-            return result |> Result.mapBoth (fun ok -> ok.Content) (fun error -> error |> ErrorRequestResult.textAsString)
+            //let! result = b0wter.CouchDb.Lib.Documents.Get.queryAsResult dbProps dbName documentId []
+            let documentIdSelector = Mango.condition "_id" (Mango.Equal <| (Mango.Text documentId)) |> Mango.createExpression
+            let! result = b0wter.CouchDb.Lib.Databases.Find.queryAsResult<'a> dbProps dbName documentIdSelector
+            return result |> Result.mapBoth (fun ok -> ok.Docs.Head) (fun error -> error |> ErrorRequestResult.textAsString)
         }
         
     /// Checks whether a given document id exists.
-    let documentIdExists ((dbProps: DbProperties.T), (dbName: string)) documentId : Async<Result<bool, string>> =
+    let documentIdExists ((dbProps: DbProperties.DbProperties), (dbName: string)) documentId : Async<Result<bool, string>> =
         async {
             let! result = b0wter.CouchDb.Lib.Documents.Head.query dbProps dbName documentId
             return match result with
@@ -112,7 +113,7 @@ module Core =
                         ErrorRequestResult.fromRequestResultAndCase(e, result) |> ErrorRequestResult.textAsString |> Error
         }
         
-    let attachmentIdExists ((dbProps: DbProperties.T), (dbName: string)) documentId attachmentId : Async<Result<bool, string>> =
+    let attachmentIdExists ((dbProps: DbProperties.DbProperties), (dbName: string)) documentId attachmentId : Async<Result<bool, string>> =
         async {
             let! result = b0wter.CouchDb.Lib.Attachments.Head.query dbProps dbName documentId attachmentId None
             return match result with

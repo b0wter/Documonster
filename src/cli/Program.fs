@@ -1,12 +1,15 @@
 ﻿open System
 open System.IO
 open System.Threading.Tasks
+open FsToolkit.ErrorHandling
+open FsToolkit.ErrorHandling.Operator.TaskResult
+open Newtonsoft.Json
 open b0wter.DocuMonster.BsaSearch.Core
-open b0wter.DocuMonster
 open b0wter.DocuMonster
 open FSharp.Control.Tasks.V2
 open Argu
 open b0wter.DocuMonster.SharedEntities.Utilities
+open b0wter.FSharp
 
 let bucketName = "documonster"
 let indexDocumentId = "index-document"
@@ -17,12 +20,17 @@ let doubleNewLine = Environment.NewLine + Environment.NewLine
 /// The IndexDocument is the document the actual binary index is attached to.
 /// It does not contain any information. The `_id` is contant so that the document can be easily
 /// checked for and retrieved.
+[<CLIMutable>]
 type IndexDocument =
     {
-        _rev: string
+        _rev: string option
+        [<JsonIgnore>]
+        index: BsaIndex
+        _id: string
+        _type: string
     }
-    member this._id = indexDocumentId
-    member this._type = "indexDocument"
+    //member this._id = indexDocumentId
+    //member this._type = "indexDocument"
 
 let parseFilename (f: string) =
     if not <| File.Exists(f) then failwith (sprintf "The given file '%s' does not exist." f) 
@@ -67,128 +75,45 @@ let private annotate filename name =
             return Error (sprintf "The Google Image Annotation client could not be initialized because: %s" e)
     }
     
-let private store couchDb filename document =
-    task {
-        return! CouchDb.Core.storeFileWith couchDb document filename |> Async.StartAsTask
-    }
+    
+let private storeAnnotationAndFile couchDb document filename : Task<Result<unit, string>> =
+    b0wter.DocuMonster.CouchDb.Core.storeDocumentAndFileWith couchDb document filename |> Async.StartAsTask
     
 let private serializeIndex (index: BsaIndex) : byte[] =
     let memoryStream = new MemoryStream()
     do index.ToStream(memoryStream)
     memoryStream.ToArray()
     
-let private retrieveOrCreateIndex couchDb indexId attachmentName : Task<Result<BsaIndex, string>> =
+let private storeIndex couchDb indexAttachmentName (indexDocument: IndexDocument) : Task<Result<unit, string>> =
     task {
-        match! CouchDb.Core.attachmentIdExists couchDb indexId attachmentName |> Async.StartAsTask with
-        | Ok true ->
-            let deserialize = (fun (bytes: byte[]) -> new MemoryStream(bytes)) >> BsaIndex.FromStream
-            let! result = b0wter.DocuMonster.CouchDb.Core.retrieveAttachment couchDb indexId attachmentName
-            return result |> Result.map deserialize
-        | Ok false ->
-            return BsaIndex.Empty() |> Ok
-        | Error e -> return Error e
-    }
-        
-let private saveIndexToCouchDb couchDb documentId bytes =
-    task {
-        //b0wter.DocuMonster.CouchDb.
-        return failwith "rekt"
+        let serializedIndex = indexDocument.index |> serializeIndex
+        return! b0wter.DocuMonster.CouchDb.Core.storeAttachment couchDb indexDocument._id indexDocument._rev indexAttachmentName serializedIndex
     }
     
-let private index (index: BsaIndex) couchDb filename document =
-    task {
-        do index.IndexDocument document
-        let serializedIndex = index |> serializeIndex
-        return 0
+let private retrieveOrCreateIndex couchDb indexId attachmentName : Task<Result<IndexDocument, string>> =
+    taskResult {
+        let! attachmentIdExists = CouchDb.Core.attachmentIdExists couchDb indexId attachmentName |> Async.StartAsTask
+        if attachmentIdExists then
+            let! document = b0wter.DocuMonster.CouchDb.Core.retrieveById<IndexDocument> couchDb indexId
+            let! attachment = b0wter.DocuMonster.CouchDb.Core.retrieveAttachment couchDb indexId attachmentName
+            let deserialized = new MemoryStream(attachment) |> BsaIndex.FromStream
+            return { document with index = deserialized }
+        else
+            return { _rev = None; index = BsaIndex.Empty (); _id = indexId; _type = "indexDocument" }
     }
-            
-let private annotateAndStore (results: ParseResults<Args>) (couchDb: (b0wter.CouchDb.Lib.DbProperties.T * string)) =
-    (*
-        1.  Check if old index exists (true -> 2a, false -> 2b) | Input: documentId, attachmentName        | Output: bool
-        2a. Retrieve the old index from the database.           | Input: documentId, attachmentName        | Output: Result<Index>
-        2b. Create empty index                                  | --- see above ---
-        3.  Annotate the file                                   | Input: filename, name                    | Output: Result<Document>
-        4.  Store annotation in db                              | Input: Document                          | Output: Result<bool>
-        5.  Index the file                                      | Input: Document, Index                   | Output: Index
-        6.  Store index in db                                   | Input: Index, documentId, attachmentName | Output: Result<bool>
-        7.  Store file in db                                    | Input: filename, documentId, attachmentN | Output: Result<bool>
-    *)
-    task {
-        //
-        // --- Retrieve the command line arguments.
-        //
+        
+let private annotateAndStore (results: ParseResults<Args>) (couchDb: (b0wter.CouchDb.Lib.DbProperties.DbProperties * string)) : Task<Result<unit, string>> =
+    taskResult {
         let annotationParameter = results.GetResult(<@ Annotate @>)
         let filename = annotationParameter.PostProcessResult(<@ Filename @>, parseFilename)
         let name = annotationParameter.TryGetResult(<@ Name @>)
         
-        //
-        // --- Annotate the file using the Google Vision API.
-        // (steps 1, 2a and 2b)
-        //
-        let! indexRetrievalResult = retrieveOrCreateIndex couchDb indexDocumentId indexAttachmentName
-        match indexRetrievalResult with
-        | Ok index ->
-            //
-            // --- Store the file as a binary attachment for the annotation in CouchDb.
-            // (step 3)
-            //
-            match! annotate filename name with
-            | Ok document ->
-                //
-                // --- Store the annotation in the database.
-                // (step 4)
-                //
-                match! document |> store couchDb filename with
-                | Ok _ ->
-                    //
-                    // --- Index the file and store the index in the database  
-                    match!
-                    return 0
-                | Error e ->
-                    return 1
-            | Error e ->
-                return 0
-                
-            (*
-            let! storeResult = annotateResult |> (Result.bindT (store couchDb filename))
-            
-            return  match storeResult with
-                    | Ok _ ->
-                        printfn "success"
-                        0
-                    | Error e ->
-                        printfn "%s" e
-                        1
-                        *)
-        | Error e ->
-            printfn "Could not retrieve the old index or create a new one because: %s" e
-            return 1
-        
-        //let! annotateResult = index |> Result.bind (fun _ -> annotate filename name)
-        
-        //let documentFormatter (d: b0wter.DocuMonster.SharedEntities.Document.Document) =
-        //    (d.Pages |> List.fold (fun acc next -> acc + doubleNewLine + next.Text) String.Empty).TrimStart()
-        
-        
-        //
-        // --- Store the annotation results in the database.
-        //
-        //let! storeResult = annotateResult |> (Result.bindT (store couchDb filename))
-        
-        //do b0wter.DocuMonster.BsaSearch.Core.hello () |> ignore
-        (*
-        let index = b0wter.DocuMonster.BsaSearch.Core.BsaIndex.Empty ()
-        
-        
-        match storeResult with
-        | Ok _ ->
-            printfn "File was annotated successfully and stored in CouchDb."
-            return 0
-        | Error e ->
-            printfn "There was an error trying to annotate and store the file:"
-            printfn "%s" e
-            return 1
-        *)
+        let! indexDocument = retrieveOrCreateIndex couchDb indexDocumentId indexAttachmentName
+        let! document = annotate filename name
+        do indexDocument.index.IndexDocument document // In-place operation required because consuming a C# library
+        do! storeAnnotationAndFile couchDb document filename
+        do! storeIndex couchDb indexAttachmentName indexDocument
+        return ()
     }
     
 [<EntryPoint>]
@@ -212,7 +137,12 @@ let main argv =
             printfn "Could not initialize CouchDb Connection because: %s" e
             return 1
         | [ Annotate _ ], Ok couchDb ->
-            return! annotateAndStore results couchDb
+            match! annotateAndStore results couchDb with
+            | Ok _ ->
+                return 0
+            | Error e ->
+                printfn "%s" e
+                return 1
         | _ ->
             printfn "You need to supply either the 'list' or the 'annotate' argument not both."
             printfn "%s" (parser.PrintUsage())

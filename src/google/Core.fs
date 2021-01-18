@@ -33,7 +33,7 @@ module Core =
 
     let private upload (client: Storage.SClient) (bucketName: string) (file: FileDefinition) =
         let buildInputPath (f: FileDefinition) : Storage.Destination =
-            sprintf "input/%s" (file |> fileDefinitionFilename) |> Storage.Destination.FullPath
+            sprintf "input/%s" (f |> fileDefinitionFilename) |> Storage.Destination.FullPath
 
         task {
             let input = file |> buildInputPath
@@ -48,15 +48,15 @@ module Core =
         }
 
     let private download (client: Storage.SClient) bucketName (annotation: Annotation.AnnotationParameter) =
-        Storage.retrieveTextFile client bucketName (annotation.TargetPrefix |> Utilities.BucketUri.value)
+        Storage.retrieveTextFile client bucketName (annotation.TargetPrefix |> BucketUri.value)
 
     let uploadAndAnnotate (sclient: Storage.SClient) (aclient: Annotation.AClient) (bucketName: string) (file: FileDefinition) (name: string option) : Task<AnnotationResult> =
         task {
             // Create all the necessary parameters.
             let rawAnnotationPrefix = sprintf "gs://%s/output/%s" bucketName (file.LocalFileName |> System.IO.Path.GetFileNameWithoutExtension)
-            let annotationPrefix = rawAnnotationPrefix |> Utilities.BucketUri.create
+            let annotationPrefix = rawAnnotationPrefix |> BucketUri.create
             let listPrefix = "output/" + (file.LocalFileName |> System.IO.Path.GetFileNameWithoutExtension)
-            let source = sprintf "gs://%s/input/%s" bucketName (file |> fileDefinitionFilename) |> Utilities.BucketUri.create
+            let source = sprintf "gs://%s/input/%s" bucketName (file |> fileDefinitionFilename) |> BucketUri.create
             
             let! uploadResult = file |> upload sclient bucketName
             

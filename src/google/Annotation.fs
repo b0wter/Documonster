@@ -71,4 +71,4 @@ module Annotation =
                 return Ok pollStatus.Result
             else
                 return Error (operation.RpcMessage.ResultCase.ToString() + " - " + operation.RpcMessage.ResultCase.ToString())
-        }
+        } 

@@ -78,7 +78,7 @@ module Storage =
         task {
             try
                 let stream = new MemoryStream()
-                let! file = client.Client.DownloadObjectAsync(bucketName, objectName, stream)
+                let! _ = client.Client.DownloadObjectAsync(bucketName, objectName, stream)
                 return Ok (Text.Encoding.UTF8.GetString(stream.ToArray()))
             with
             | ex -> return Error ex.Message
@@ -109,6 +109,7 @@ module Storage =
         }
 
     let uploadLocalFileWith (client: SClient) (bucketName: string) (destination: Destination) (contentType: Utilities.MimeType.T) (localFilename: string) =
+        (
         let contentType = contentType |> Utilities.MimeType.value
         if File.Exists localFilename then
             let fileStream = try Ok (File.OpenRead(localFilename)) with | ex -> Error (ex.ToString())
@@ -119,6 +120,7 @@ module Storage =
             | Error e, _ | _, Error e ->  Task.Run(fun () -> Error e)
         else
             Task.Run (fun () -> Error "The local file does not exist.")
+        ) |> Async.AwaitTask
         
     let delete (client: SClient) (bucketName: string) (destination: Destination) =
         task {
@@ -133,7 +135,7 @@ module Storage =
         }
 
     let list (client: SClient) (bucketName: string) (prefix: string option) =
-        async {
+        task {
             try
                 let prefix = match prefix with | Some s -> s | None -> String.Empty
                 let result = client.Client.ListObjectsAsync(bucketName, prefix)
