@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Core.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\bsa\Documonster.BsaSearch.fsproj" />
+    <ProjectReference Include="..\couchdb\Documonster.CouchDb.fsproj" />
+    <ProjectReference Include="..\entities\Documonster.SharedEntities.fsproj" />
+    <ProjectReference Include="..\google\Documonster.Google.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="b0wter.FSharp" Version="4.10.0" />
+    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.0.0" />
+  </ItemGroup>
+
+</Project>

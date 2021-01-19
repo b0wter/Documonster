@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="b0wter.couchdb" Version="8.0.1" />
+    <PackageReference Include="b0wter.couchdb" Version="8.1.2" />
     <PackageReference Include="b0wter.fsharp" Version="4.10.0" />
     <PackageReference Include="FifteenBelow.Json.Core" Version="1.0.0" />
   </ItemGroup>

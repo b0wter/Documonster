@@ -94,9 +94,12 @@ module Core =
         }
         
     /// Retrieves a document by using its id.
-    let retrieveById<'a> ((dbProps: DbProperties.DbProperties), (dbName: string)) (documentId: string) : Async<Result<'a, string>> =
+    let retrieveById<'a> ((dbProps: DbProperties.DbProperties), (dbName: string)) (documentId: string) = //: Async<Result<'a, string>> =
         async {
-            //let! result = b0wter.CouchDb.Lib.Documents.Get.queryAsResult dbProps dbName documentId []
+            // `Document.Get` throws a JsonException because parts of the message cannot be deserialized. Needs further investigation.
+            //
+            //let! result = b0wter.CouchDb.Lib.Documents.Get.queryJObjectAsResult dbProps dbName documentId []
+            //return result |> Result.mapBoth (fun ok -> ok.Content.ToObject<'a>()) (fun error -> error |> ErrorRequestResult.textAsString)
             let documentIdSelector = Mango.condition "_id" (Mango.Equal <| (Mango.Text documentId)) |> Mango.createExpression
             let! result = b0wter.CouchDb.Lib.Databases.Find.queryAsResult<'a> dbProps dbName documentIdSelector
             return result |> Result.mapBoth (fun ok -> ok.Docs.Head) (fun error -> error |> ErrorRequestResult.textAsString)

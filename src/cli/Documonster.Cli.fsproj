@@ -5,9 +5,7 @@
     <RootNamespace>b0wter.DocuMonster.Cli</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\bsa\Documonster.BsaSearch.fsproj" />
-    <ProjectReference Include="..\couchdb\Documonster.CouchDb.fsproj" />
-    <ProjectReference Include="..\google\Documonster.Google.fsproj" />
+    <ProjectReference Include="..\library\Documonster.Library.fsproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.fs" />
